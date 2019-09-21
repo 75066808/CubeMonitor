@@ -26,7 +26,10 @@ public:
 	static void solve(Cube &cube);
 
 private:
-	static GLbyte solveCode[2][MAX_NUM];
+
+	static GLboolean parity; // parity check
+	static GLbyte positionCode[2][MAX_NUM];     // position code
+	static GLbyte orientationCode[2][MAX_NUM];  // orientation code
 	static GLint visited[ORDER][ORDER][ORDER];
 
 	static Block cubeCode[ORDER][ORDER][ORDER];
@@ -47,10 +50,10 @@ private:
 	static void applyFormula(Cube& cube);
 
 
-	static GLboolean parityCheck(GLint type, GLint& index);
-	static void turnBlockOrientation(Cube& cube, GLint type, GLint& index);
+	static void parityCheck(GLint type, GLint num);
+	static GLint observeBlockPosition(Cube& cube, GLint type);
+	static void observeBlockOrientation(Cube& cube, GLint type);
 
-	
 	
 	static void mapStep(Step& step, GLbyte symbol);
 	static void execStep(Cube& cube, Step& step);

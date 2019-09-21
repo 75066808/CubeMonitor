@@ -24,7 +24,7 @@
 #define ORDER  3
 #define HSIDE_LEN 1.0f // half block side length
 
-#define SPEED  0.3f
+#define SPEED  0.5f
 
 #define DIR_NUM 6
 

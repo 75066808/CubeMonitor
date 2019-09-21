@@ -3,7 +3,10 @@
 Step Solver::formula[2][26][26][MAX_LEN];
 Step Solver::extraFormula[MAX_LEN];
 
-GLbyte Solver::solveCode[2][MAX_NUM];
+GLboolean Solver::parity; // parity check
+GLbyte Solver::positionCode[2][MAX_NUM];     // position code
+GLbyte Solver::orientationCode[2][MAX_NUM];  // orientation code
+
 Block Solver::cubeCode[ORDER][ORDER][ORDER];
 Block Solver::cubeColor[ORDER][ORDER][ORDER];
 
@@ -265,12 +268,68 @@ void Solver::turnWholeOrientation(Cube& cube)
 
 void Solver::observe(Cube& cube, GLint type)
 {
+	GLint number;
+
+	number = observeBlockPosition(cube, type); // position move
+	observeBlockOrientation(cube, type);       // orientation inverse
+
+	parityCheck(type, number); // parity check
+}
+
+void Solver::applyFormula(Cube& cube)
+{
+	int i, j, k;
+	GLint start, end;
+
+
+	for (k = 0; k < 2; k++) // position move
+	{
+		for (i = 0; positionCode[k][i] != -1; i += 2) // each combination
+		{
+			start = positionCode[k][i] - 'A';
+			end = positionCode[k][i + 1] - 'A';
+
+			for (j = 0; formula[k][start][end][j].direction[0] != -2; j++) // each step
+			{
+				execStep(cube, formula[k][start][end][j]);
+			}
+		}
+	}
+
+	if (parity) // need to do extra parity operation
+	{
+		for (j = 0; extraFormula[j].direction[0] != -2; j++) // each step
+		{
+			execStep(cube, extraFormula[j]);
+		}
+	}
+
+	for (k = 0; k < 2; k++) // orientation inverse
+	{
+		for (i = 0; orientationCode[k][i] != -1; i += 2) // each combination
+		{
+			start = orientationCode[k][i] - 'A';
+			end = orientationCode[k][i + 1] - 'A';
+
+			for (j = 0; formula[k][start][end][j].direction[0] != -2; j++) // each step
+			{
+				execStep(cube, formula[k][start][end][j]);
+			}
+		}
+	}
+
+}
+
+
+
+GLint Solver::observeBlockPosition(Cube& cube, GLint type)
+{
 	int a, b, c;
 	int i, j, k, m, n;
 
 	GLint index;
 	GLboolean parity;
-	Block curBlock,tempBlock;
+	Block curBlock, tempBlock;
 	GLint bufferPos[3], curColor;
 
 	if (type == EDGE)
@@ -286,7 +345,7 @@ void Solver::observe(Cube& cube, GLint type)
 		bufferPos[2] = 0;
 	}
 
-	
+
 	for (i = 0; i < ORDER; i++)
 	{
 		for (j = 0; j < ORDER; j++)
@@ -297,10 +356,9 @@ void Solver::observe(Cube& cube, GLint type)
 
 				curBlock = cubeColor[i][j][k];
 				tempBlock = cube.getBlock(i, j, k);
-
 				if (compareBlock(curBlock, tempBlock)) // no need to move
 					visited[i][j][k] = 1;
-				
+
 			}
 		}
 	}
@@ -309,7 +367,7 @@ void Solver::observe(Cube& cube, GLint type)
 	visited[bufferPos[0]][bufferPos[1]][bufferPos[2]] = 1;
 	curBlock = cube.getBlock(bufferPos[0], bufferPos[1], bufferPos[2]);
 	curColor = curBlock.surface[UP]; // start surface
-	
+
 
 	while (1)
 	{
@@ -350,7 +408,7 @@ void Solver::observe(Cube& cube, GLint type)
 											{
 												if (curBlock.surface[m] != BLACK)
 												{
-													solveCode[type][index++] = cubeCode[a][b][c].surface[m];
+													positionCode[type][index++] = cubeCode[a][b][c].surface[m];
 													curColor = curBlock.surface[m];
 													goto next; // next block
 												}
@@ -362,107 +420,35 @@ void Solver::observe(Cube& cube, GLint type)
 							goto finish; // finished observing
 						}
 						else // not visited
-						{						
+						{
 							curBlock = cube.getBlock(i, j, k);
 							for (m = 0; m < DIR_NUM; m++)
 							{
 								if (tempBlock.surface[m] == curColor)
 								{
-									solveCode[type][index++] = cubeCode[i][j][k].surface[m];
+									positionCode[type][index++] = cubeCode[i][j][k].surface[m];
 									curColor = curBlock.surface[m];
 									visited[i][j][k] = 1;
 									goto next; // next block
 								}
-							}							
-						}				
+							}
+						}
 					}
-				
+
 				}
 			}
 		}
 	next:;
 	}
-
 finish:
-	parity = parityCheck(type, index); // parity check
-	turnBlockOrientation(cube, type, index);  // orientation inverse
-	solveCode[type][index] = parity ? -2 : -1; // extra step for parity check
+	positionCode[type][index] = -1; // end flag
+	return index; // whole step number
 }
 
-void Solver::applyFormula(Cube& cube)
-{
-	int i, j, k;
-	GLint start, end;
-
-
-	for (k = 0; k < 2; k++)
-	{
-		for (i = 0; solveCode[k][i] > 0; i += 2) // each combination
-		{
-			start = solveCode[k][i] - 'A';
-			end = solveCode[k][i + 1] - 'A';
-
-			for (j = 0; formula[k][start][end][j].direction[0] != -2; j++) // each step
-			{
-				execStep(cube, formula[k][start][end][j]);
-			}
-		}
-	}
-
-	if (solveCode[1][i] == -2) // extra formula
-	{
-		for (j = 0; extraFormula[j].direction[0] != -2; j++) // each step
-		{
-			execStep(cube, extraFormula[j]);
-		}
-	}
-
-
-}
-
-
-GLboolean Solver::parityCheck(GLint type, GLint& index)
-{
-	if (index % 2 == 1) // parity-check
-	{
-		if (type == EDGE)
-		{
-			if (solveCode[type][index - 1] == 'E')
-				index--;
-			else if (solveCode[type][index - 1] == 'F')
-			{
-				solveCode[type][index++] = 'C';
-				solveCode[type][index++] = 'C';
-				solveCode[type][index++] = 'E';
-
-			}
-			else
-				solveCode[type][index++] = 'E';
-		}
-		else
-		{
-			if (solveCode[type][index - 1] == 'J')
-				index--;
-			else if (solveCode[type][index - 1] == 'K' || solveCode[type][index - 1] == 'L')
-			{
-				solveCode[type][index++] = 'D';
-				solveCode[type][index++] = 'D';
-				solveCode[type][index++] = 'J';
-
-			}
-			else
-				solveCode[type][index++] = 'J';
-		}
-		return 1;
-	}
-	else
-		return 0;
-}
-
-void Solver::turnBlockOrientation(Cube& cube, GLint type, GLint& index)
+void Solver::observeBlockOrientation(Cube& cube, GLint type)
 {
 	int i, j, k, m, n;
-	GLint finishCode;
+	GLint index, finishCode;
 	Block tempBlock, curBlock;
 
 	GLint bufferPos[3];
@@ -523,6 +509,7 @@ void Solver::turnBlockOrientation(Cube& cube, GLint type, GLint& index)
 	}
 
 over:
+	index = 0;
 	for (i = 0; i < ORDER; i++)
 	{
 		for (j = 0; j < ORDER; j++)
@@ -556,10 +543,10 @@ over:
 						{
 							if (curBlock.surface[m] == tempBlock.surface[n] && curBlock.surface[m] != BLACK)
 							{
-								solveCode[type][index++] = cubeCode[i][j][k].surface[m];
-								solveCode[type][index++] = finishCode;
-								solveCode[type][index++] = finishCode;
-								solveCode[type][index++] = cubeCode[i][j][k].surface[n];
+								orientationCode[type][index++] = cubeCode[i][j][k].surface[m];
+								orientationCode[type][index++] = finishCode;
+								orientationCode[type][index++] = finishCode;
+								orientationCode[type][index++] = cubeCode[i][j][k].surface[n];
 								goto cont;
 							}
 						}
@@ -569,6 +556,51 @@ over:
 			}
 		}
 	}
+
+	orientationCode[type][index] = -1; // end flag
+}
+
+void Solver::parityCheck(GLint type, GLint num)
+{
+	if (num % 2 == 1) // parity-check
+	{
+		if (type == EDGE)
+		{
+			if (positionCode[type][num - 1] == 'E') // delete 'E'
+				num--;
+			else if (positionCode[type][num - 1] == 'F') // add 'CCE'
+			{
+				positionCode[type][num++] = 'C';
+				positionCode[type][num++] = 'C';
+				positionCode[type][num++] = 'E';
+
+			}
+			else
+				positionCode[type][num++] = 'E'; // add 'E'
+		}
+		else
+		{
+			if (positionCode[type][num - 1] == 'J') // delete 'J'
+				num--;
+			else if (positionCode[type][num - 1] == 'K' || positionCode[type][num - 1] == 'L') // add 'DDJ'
+			{
+				positionCode[type][num++] = 'D';
+				positionCode[type][num++] = 'D';
+				positionCode[type][num++] = 'J';
+
+			}
+			else // add 'J'
+				positionCode[type][num++] = 'J';
+		}
+		parity = 1; // need to do extra operation
+		positionCode[type][num] = -1; // add end flag
+	}
+	else
+	{
+		parity = 0; // no need to do extra operation
+		positionCode[type][num] = -1; // add end flag
+	}
+
 }
 
 void Solver::mapStep(Step& step, GLbyte symbol)

@@ -21,3 +21,4 @@
 | Date      | Update Information                                         |
 | --------- | ---------------------------------------------------------- |
 | 2019/9/21 | Implement basic rotate operation and 彳亍 blindfold method |
+| 2019/9/21 | Fix bug of sequence of orientation turn and parity check   |
